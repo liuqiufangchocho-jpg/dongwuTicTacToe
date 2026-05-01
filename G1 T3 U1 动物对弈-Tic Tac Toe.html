@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Animal Tic Tac Toe</title>
+  
+  <!-- Import Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Import React and ReactDOM -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  
+  <!-- Import Babel for JSX translation in browser -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Global CSS animations -->
+  <style>
+    @keyframes fade-in {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in {
+      animation: fade-in 0.4s ease-out forwards;
+    }
+    @keyframes pop-in {
+      0% { opacity: 0; transform: scale(0.5); }
+      70% { transform: scale(1.1); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+    .animate-pop-in {
+      animation: pop-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // Animal Database
+    const ANIMALS = [
+      { id: 'cat', hanzi: '猫', pinyin: 'māo', emoji: '🐱' },
+      { id: 'dog', hanzi: '狗', pinyin: 'gǒu', emoji: '🐶' },
+      { id: 'bird', hanzi: '鸟', pinyin: 'niǎo', emoji: '🐦' },
+      { id: 'fish', hanzi: '鱼', pinyin: 'yú', emoji: '🐟' },
+      { id: 'horse', hanzi: '马', pinyin: 'mǎ', emoji: '🐴' },
+      { id: 'panda', hanzi: '熊猫', pinyin: 'xióng māo', emoji: '🐼' },
+      { id: 'camel', hanzi: '骆驼', pinyin: 'luò tuó', emoji: '🐫' },
+      { id: 'tiger', hanzi: '老虎', pinyin: 'lǎo hǔ', emoji: '🐯' },
+      { id: 'cow', hanzi: '牛', pinyin: 'niú', emoji: '🐮' },
+      { id: 'sheep', hanzi: '羊', pinyin: 'yáng', emoji: '🐑' },
+    ];
+
+    // Helper to play Chinese pronunciation
+    const speakChinese = (text) => {
+      if (!window.speechSynthesis) return;
+      window.speechSynthesis.cancel();
+      const msg = new SpeechSynthesisUtterance();
+      msg.text = text;
+      msg.lang = 'zh-CN';
+      msg.rate = 0.5;
+      window.speechSynthesis.speak(msg);
+    };
+
+    // Canvas Fireworks Component
+    const Fireworks = () => {
+      const canvasRef = useRef(null);
+
+      useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        let animationId;
+
+        const resize = () => {
+          canvas.width = window.innerWidth;
+          canvas.height = window.innerHeight;
+        };
+        window.addEventListener('resize', resize);
+        resize();
+
+        const particles = [];
+        const colors = ['#FF5252', '#FFD740', '#69F0AE', '#40C4FF', '#E040FB'];
+
+        const createExplosion = (x, y) => {
+          const particleCount = 80 + Math.random() * 40;
+          for (let i = 0; i < particleCount; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = Math.random() * 6 + 2;
+            particles.push({
+              x,
+              y,
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed,
+              life: 1,
+              decay: Math.random() * 0.015 + 0.005,
+              color: colors[Math.floor(Math.random() * colors.length)],
+              size: Math.random() * 3 + 1
+            });
+          }
+        };
+
+        let frameCount = 0;
+        const loop = () => {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          
+          if (frameCount % 40 === 0) {
+            createExplosion(
+              Math.random() * canvas.width * 0.8 + canvas.width * 0.1, 
+              Math.random() * canvas.height * 0.5 + canvas.height * 0.1
+            );
+          }
+          frameCount++;
+
+          for (let i = particles.length - 1; i >= 0; i--) {
+            let p = particles[i];
+            p.x += p.vx;
+            p.y += p.vy;
+            p.vy += 0.05;
+            p.life -= p.decay;
+
+            ctx.globalAlpha = Math.max(0, p.life);
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fill();
+
+            if (p.life <= 0) {
+              particles.splice(i, 1);
+            }
+          }
+          ctx.globalAlpha = 1;
+          animationId = requestAnimationFrame(loop);
+        };
+
+        loop();
+
+        return () => {
+          window.removeEventListener('resize', resize);
+          cancelAnimationFrame(animationId);
+        };
+      }, []);
+
+      return <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-50" />;
+    };
+
+    // Animal Identity Card Component
+    const AnimalCard = ({ animal, onClick, selectedAs, disabled = false, size = 'normal' }) => {
+      let borderClass = 'border-2 border-transparent';
+      if (selectedAs === 1) borderClass = 'border-4 border-blue-500 shadow-blue-200 shadow-lg scale-105';
+      if (selectedAs === 2) borderClass = 'border-4 border-red-500 shadow-red-200 shadow-lg scale-105';
+
+      const sizeClasses = size === 'large' 
+        ? 'p-8 w-48 sm:w-56' 
+        : 'p-4 w-28 sm:w-36 hover:-translate-y-1';
+
+      return (
+        <div 
+          onClick={() => !disabled && onClick(animal)}
+          className={`bg-white rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-all duration-300 ${borderClass} ${sizeClasses} shadow-md hover:shadow-xl`}
+        >
+          <div className={`${size === 'large' ? 'text-7xl mb-4' : 'text-4xl mb-2'}`}>
+            {animal.emoji}
+          </div>
+          <div className={`text-gray-500 font-medium ${size === 'large' ? 'text-xl mb-1' : 'text-sm'}`}>
+            {animal.pinyin}
+          </div>
+          <div className={`font-bold text-gray-800 ${size === 'large' ? 'text-5xl' : 'text-2xl'}`}>
+            {animal.hanzi}
+          </div>
+        </div>
+      );
+    };
+
+    function App() {
+      const [stage, setStage] = useState('START');
+      const [player1, setPlayer1] = useState(null);
+      const [player2, setPlayer2] = useState(null);
+      
+      const [board, setBoard] = useState(Array(9).fill(null));
+      const [currentPlayer, setCurrentPlayer] = useState(1);
+      const [winner, setWinner] = useState(null);
+      const [winningLine, setWinningLine] = useState([]);
+
+      const checkWinner = (squares) => {
+        const lines = [
+          [0, 1, 2], [3, 4, 5], [6, 7, 8],
+          [0, 3, 6], [1, 4, 7], [2, 5, 8],
+          [0, 4, 8], [2, 4, 6]
+        ];
+        for (let i = 0; i < lines.length; i++) {
+          const [a, b, c] = lines[i];
+          if (squares[a] && squares[a] === squares[b] && squares[a] === squares[c]) {
+            return { winnerId: squares[a], line: lines[i] };
+          }
+        }
+        if (!squares.includes(null)) return { winnerId: 'DRAW', line: [] };
+        return null;
+      };
+
+      const handleCardSelection = (animal) => {
+        speakChinese(animal.hanzi);
+        if (player1?.id === animal.id) {
+          setPlayer1(null);
+        } else if (player2?.id === animal.id) {
+          setPlayer2(null);
+        } else if (!player1) {
+          setPlayer1(animal);
+        } else if (!player2) {
+          setPlayer2(animal);
+        }
+      };
+
+      const startGame = () => {
+        if (player1 && player2) {
+          setBoard(Array(9).fill(null));
+          setCurrentPlayer(1);
+          setWinner(null);
+          setWinningLine([]);
+          setStage('GAME');
+        }
+      };
+
+      const handleCellClick = (index) => {
+        if (board[index] || winner || stage !== 'GAME') return;
+
+        const currentAnimal = currentPlayer === 1 ? player1 : player2;
+        speakChinese(currentAnimal.hanzi);
+
+        const newBoard = [...board];
+        newBoard[index] = currentPlayer;
+        setBoard(newBoard);
+
+        const result = checkWinner(newBoard);
+        if (result) {
+          setWinner(result.winnerId);
+          setWinningLine(result.line);
+          setTimeout(() => setStage('END'), 500);
+        } else {
+          setCurrentPlayer(currentPlayer === 1 ? 2 : 1);
+        }
+      };
+
+      const resetGame = () => {
+        setBoard(Array(9).fill(null));
+        setCurrentPlayer(1);
+        setWinner(null);
+        setWinningLine([]);
+        setStage('GAME');
+      };
+
+      const changeAnimals = () => {
+        setPlayer1(null);
+        setPlayer2(null);
+        setStage('START');
+      };
+
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-100 flex flex-col items-center py-10 px-4 font-sans select-none">
+          <h1 className="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-blue-600 mb-8 text-center drop-shadow-sm">
+            Animal Tic Tac Toe
+          </h1>
+
+          {stage === 'START' && (
+            <div className="w-full max-w-4xl flex flex-col items-center animate-fade-in">
+              <p className="text-xl text-gray-700 font-semibold mb-6 text-center">
+                Select <span className="text-blue-600">Player 1</span> and <span className="text-red-500">Player 2</span>
+              </p>
+              
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 md:gap-6 mb-10">
+                {ANIMALS.map(animal => (
+                  <AnimalCard 
+                    key={animal.id}
+                    animal={animal}
+                    onClick={handleCardSelection}
+                    selectedAs={player1?.id === animal.id ? 1 : player2?.id === animal.id ? 2 : null}
+                  />
+                ))}
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center gap-6 mb-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                <div className="flex flex-col items-center">
+                  <span className="text-sm text-gray-500 mb-2 font-bold tracking-wider uppercase">Player 1</span>
+                  {player1 ? (
+                    <div className="flex items-center gap-2 text-2xl font-bold text-blue-600">
+                      <span>{player1.emoji}</span> <span>{player1.hanzi}</span>
+                    </div>
+                  ) : (
+                    <div className="w-20 h-10 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center text-gray-400 text-sm">Empty</div>
+                  )}
+                </div>
+                
+                <div className="text-2xl font-black text-gray-300 italic">VS</div>
+
+                <div className="flex flex-col items-center">
+                  <span className="text-sm text-gray-500 mb-2 font-bold tracking-wider uppercase">Player 2</span>
+                  {player2 ? (
+                    <div className="flex items-center gap-2 text-2xl font-bold text-red-500">
+                      <span>{player2.emoji}</span> <span>{player2.hanzi}</span>
+                    </div>
+                  ) : (
+                    <div className="w-20 h-10 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center text-gray-400 text-sm">Empty</div>
+                  )}
+                </div>
+              </div>
+
+              <button 
+                onClick={startGame}
+                disabled={!player1 || !player2}
+                className={`px-10 py-4 rounded-full font-bold text-xl transition-all shadow-lg ${
+                  player1 && player2 
+                    ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:scale-105 active:scale-95' 
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-70'
+                }`}
+              >
+                Start Game
+              </button>
+            </div>
+          )}
+
+          {stage === 'GAME' && (
+            <div className="flex flex-col items-center animate-fade-in w-full max-w-md">
+              <div className="flex justify-between items-center w-full mb-8 px-4 py-3 bg-white rounded-full shadow-sm border border-gray-100">
+                <div className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all ${currentPlayer === 1 ? 'bg-blue-100 ring-2 ring-blue-400' : 'opacity-50'}`}>
+                  <span className="text-2xl">{player1.emoji}</span>
+                  <span className="font-bold text-blue-800 hidden sm:inline">Player 1</span>
+                </div>
+                <div className="text-gray-400 font-bold uppercase text-sm tracking-widest">Turn</div>
+                <div className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all ${currentPlayer === 2 ? 'bg-red-100 ring-2 ring-red-400' : 'opacity-50'}`}>
+                  <span className="font-bold text-red-800 hidden sm:inline">Player 2</span>
+                  <span className="text-2xl">{player2.emoji}</span>
+                </div>
+              </div>
+
+              <div className="bg-white p-4 rounded-3xl shadow-xl w-full aspect-square grid grid-cols-3 grid-rows-3 gap-2 sm:gap-3 bg-opacity-80 backdrop-blur-md">
+                {board.map((cellPlayerId, index) => {
+                  const isWinningCell = winningLine.includes(index);
+                  const animal = cellPlayerId === 1 ? player1 : cellPlayerId === 2 ? player2 : null;
+                  
+                  return (
+                    <div 
+                      key={index}
+                      onClick={() => handleCellClick(index)}
+                      className={`
+                        flex flex-col items-center justify-center rounded-2xl cursor-pointer transition-all duration-200 relative overflow-hidden
+                        ${!cellPlayerId && !winner ? 'bg-gray-200 hover:bg-gray-300' : 'bg-gray-200'}
+                        ${isWinningCell ? 'ring-4 ring-yellow-400 bg-yellow-200 scale-105 z-10' : ''}
+                      `}
+                    >
+                      {animal && (
+                        <div className="animate-pop-in flex flex-col items-center pointer-events-none">
+                          <span className="text-4xl sm:text-6xl mb-1">{animal.emoji}</span>
+                          <span className={`text-xl sm:text-2xl font-bold ${cellPlayerId === 1 ? 'text-blue-600' : 'text-red-500'}`}>
+                            {animal.hanzi}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <button 
+                onClick={changeAnimals}
+                className="mt-10 px-6 py-2 text-gray-500 hover:text-gray-800 hover:bg-gray-200 rounded-full transition-all font-medium"
+              >
+                ← Change Animals
+              </button>
+            </div>
+          )}
+
+          {stage === 'END' && (
+            <div className="flex flex-col items-center justify-center w-full z-10 animate-fade-in mt-10">
+              {winner !== 'DRAW' && <Fireworks />}
+              
+              <div className="bg-white/90 backdrop-blur-lg p-10 rounded-3xl shadow-2xl flex flex-col items-center z-10 text-center border border-white/50">
+                {winner === 'DRAW' ? (
+                  <div className="mb-8">
+                    <h2 className="text-5xl font-black text-gray-700 mb-4">It's a Draw!</h2>
+                    <div className="flex justify-center gap-4 text-6xl">
+                      {player1.emoji} {player2.emoji}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mb-8 flex flex-col items-center">
+                    <h2 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-500 to-orange-500 mb-8 uppercase tracking-widest animate-pulse">
+                      Winner!
+                    </h2>
+                    <AnimalCard 
+                      animal={winner === 1 ? player1 : player2} 
+                      disabled={true} 
+                      size="large"
+                    />
+                    <p className={`mt-6 text-2xl font-bold ${winner === 1 ? 'text-blue-600' : 'text-red-500'}`}>
+                      Player {winner} Wins!
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex flex-col sm:flex-row gap-4 mt-4">
+                  <button 
+                    onClick={resetGame}
+                    className="px-8 py-3 bg-gradient-to-r from-green-400 to-emerald-500 text-white font-bold rounded-full shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all text-lg"
+                  >
+                    Play Again
+                  </button>
+                  <button 
+                    onClick={changeAnimals}
+                    className="px-8 py-3 bg-white text-gray-700 border-2 border-gray-200 font-bold rounded-full shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-all text-lg"
+                  >
+                    Change Animals
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
